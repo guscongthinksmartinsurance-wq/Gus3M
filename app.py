@@ -9,7 +9,7 @@ from PIL import Image
 import plotly.express as px
 from litellm import completion
 
-# --- 1. CẤU HÌNH HỆ THỐNG & SIDEBAR VIDEO ---
+# --- 1. CẤU HÌNH SIDEBAR VIDEO ---
 VIDEO_LINKS = {
     "LINK NIỀM TIN": "https://www.youtube.com/watch?v=PoUWP--0CDU",
     "LINK IUL": "https://www.youtube.com/watch?v=YqL7qMa1PCU",
@@ -24,13 +24,8 @@ if 'user_profile' not in st.session_state:
 
 if not st.session_state.logged_in:
     st.set_page_config(page_title="3M-Gus Login", page_icon="🔐")
-    try:
-        USER_CREDENTIALS = json.loads(st.secrets['USER_ACCOUNTS'])
-        os.environ["OPENAI_API_KEY"] = st.secrets['OPENAI_API_KEY']
-    except:
-        st.error("❌ Kiểm tra USER_ACCOUNTS và OPENAI_API_KEY trong Secrets!")
-        st.stop()
-        
+    USER_CREDENTIALS = json.loads(st.secrets['USER_ACCOUNTS'])
+    os.environ["OPENAI_API_KEY"] = st.secrets['OPENAI_API_KEY']
     c1, c2, c3 = st.columns([1, 2, 1])
     with c2:
         st.markdown("<h1 style='text-align: center; color: #D35400;'>3M-GUS CRM</h1>", unsafe_allow_html=True)
@@ -43,10 +38,9 @@ if not st.session_state.logged_in:
                 else: st.error("Sai thông tin!")
     st.stop()
 
-# --- 3. HÀM XỬ LÝ DỮ LIỆU ---
+# --- 3. LOGIC XỬ LÝ DỮ LIỆU ---
 def load_data():
-    if os.path.exists("data.xlsx"):
-        return pd.read_excel("data.xlsx")
+    if os.path.exists("data.xlsx"): return pd.read_excel("data.xlsx")
     return pd.DataFrame(columns=['NAME', 'Cellphone', 'Status', 'NOTE'])
 
 def save_data(df):
@@ -68,26 +62,25 @@ def clean_phone(p):
 def main():
     st.set_page_config(page_title="3M-Gus CRM", page_icon="💎", layout="wide")
     
-    # CSS: Fix Sidebar (Nền Cam, Chữ nút Đen, Chữ tiêu đề Trắng)
+    # FIX CSS SIDEBAR: CHỮ ĐEN TRÊN NỀN TRẮNG, KHÔNG TÀNG HÌNH
     st.markdown("""
     <style>
-        [data-testid="stSidebar"] { background: linear-gradient(180deg, #D35400 0%, #E67E22 100%) !important; }
+        [data-testid="stSidebar"] { background-color: #D35400 !important; }
         [data-testid="stSidebar"] .stButton button { 
-            background-color: white !important; color: #333333 !important; 
-            font-weight: bold !important; border-radius: 8px !important; border: 1px solid #D35400 !important;
+            background-color: white !important; color: black !important; 
+            font-weight: bold !important; border-radius: 5px !important; border: 2px solid #333 !important;
+            height: 45px !important;
         }
-        [data-testid="stSidebar"] p, [data-testid="stSidebar"] h3 { color: white !important; font-weight: bold; }
+        [data-testid="stSidebar"] * { color: white !important; font-weight: bold; }
         .call-btn {
-            background-color: #27ae60; color: white !important; padding: 15px;
-            text-align: center; border-radius: 10px; text-decoration: none;
-            display: block; font-weight: bold; margin-bottom: 20px; font-size: 20px;
+            background-color: #27ae60; color: white !important; padding: 12px;
+            text-align: center; border-radius: 8px; text-decoration: none;
+            display: inline-block; font-weight: bold; width: 100%; font-size: 18px;
         }
     </style>
     """, unsafe_allow_html=True)
 
-    if 'original_df' not in st.session_state:
-        st.session_state.original_df = load_data()
-    
+    if 'original_df' not in st.session_state: st.session_state.original_df = load_data()
     df = st.session_state.original_df
 
     with st.sidebar:
@@ -100,47 +93,46 @@ def main():
         if st.button("🚪 Đăng xuất", use_container_width=True):
             st.session_state.logged_in = False; st.rerun()
 
+    # --- PIPELINE: NÚT GỌI & DỮ LIỆU ---
     if menu == "📇 Pipeline":
-        st.title("📇 QUẢN LÝ PIPELINE & CALL")
+        st.title("📇 QUẢN LÝ PIPELINE")
         
-        if df.empty:
-            st.warning("⚠️ Hiện chưa có dữ liệu khách hàng. Vui lòng vào mục 'Import File'!")
-        else:
-            # KHU VỰC GỌI & AI (HIỆN TRƯỚC BẢNG)
-            sel_name = st.selectbox("🎯 CHỌN KHÁCH HÀNG ĐỂ GỌI", ["-- Chọn khách --"] + df['NAME'].tolist())
-            if sel_name != "-- Chọn khách --":
-                row = df[df['NAME'] == sel_name].iloc[0]
+        # 1. KHU VỰC GỌI & AI (HIỆN NGAY ĐẦU)
+        if not df.empty:
+            sel_name = st.selectbox("🎯 CHỌN KHÁCH HÀNG ĐỂ GỌI & DÙNG AI", ["-- Mời chọn khách --"] + df['NAME'].astype(str).tolist())
+            if sel_name != "-- Mời chọn khách --":
+                row = df[df['NAME'].astype(str) == sel_name].iloc[0]
                 phone = clean_phone(row['Cellphone'])
                 c1, c2 = st.columns(2)
                 with c1:
-                    if phone: st.markdown(f'<a href="rcmobile://call?number={phone}" class="call-btn">📞 GỌI NGAY: {phone}</a>', unsafe_allow_html=True)
-                    else: st.error("Khách này không có số điện thoại!")
+                    if phone: st.markdown(f'<a href="rcmobile://call?number={phone}" class="call-btn">📞 GỌI RINGCENTRAL: {phone}</a>', unsafe_allow_html=True)
+                    else: st.warning("Khách không có số!")
                 with c2:
-                    if st.button("🧠 AI GUS PHÂN TÍCH TÂM LÝ"):
-                        with st.spinner("Gus đang phân tích..."):
-                            resp = completion(model=AI_MODEL, messages=[{"role":"user","content":f"Phân tích tâm lý và gợi ý tư vấn cho khách này: {row['NOTE']}"}])
+                    if st.button("🧠 AI GUS PHÂN TÍCH"):
+                        with st.spinner("Đang đọc tâm lý..."):
+                            resp = completion(model="openai/gpt-4o-mini", messages=[{"role":"user","content":f"Phân tích tâm lý khách: {row['NOTE']}"}])
                             st.info(resp.choices[0].message.content)
 
-            st.markdown("---")
-            # BẢNG DỮ LIỆU CÓ THỂ CHỈNH SỬA
-            edited_df = st.data_editor(df, use_container_width=True, height=500, num_rows="dynamic")
-            if st.button("💾 LƯU THÔNG TIN & BACKUP CLOUD", use_container_width=True):
-                save_data(edited_df)
-                st.session_state.original_df = edited_df
-                st.success("Đã lưu dữ liệu thành công!")
+        # 2. BẢNG DỮ LIỆU CHÍNH
+        st.markdown("### 📝 DANH SÁCH CHI TIẾT")
+        edited_df = st.data_editor(df, use_container_width=True, height=500, num_rows="dynamic")
+        
+        if st.button("💾 LƯU DỮ LIỆU (Lên Excel & Cloud)", use_container_width=True):
+            save_data(edited_df)
+            st.session_state.original_df = edited_df
+            st.success("Đã lưu thành công!")
 
     elif menu == "📥 Import File":
-        st.title("📥 IMPORT DỮ LIỆU TỪ EXCEL")
-        file = st.file_uploader("Chọn file .xlsx", type=["xlsx"])
+        st.title("📥 IMPORT FILE")
+        file = st.file_uploader("Chọn file Excel", type=["xlsx"])
         if file:
             df_new = pd.read_excel(file)
-            st.write("Dữ liệu mới nhận diện:")
             st.dataframe(df_new.head())
-            if st.button("✅ XÁC NHẬN GỘP VÀO HỆ THỐNG"):
+            if st.button("✅ XÁC NHẬN GỘP"):
                 combined = pd.concat([df, df_new], ignore_index=True).drop_duplicates(subset=['Cellphone'], keep='last')
                 save_data(combined)
                 st.session_state.original_df = combined
-                st.success("Đã gộp thành công! Về Pipeline để kiểm tra.")
+                st.success("Đã gộp xong! Hãy về Pipeline để gọi.")
 
     elif menu == "📊 Dashboard":
         st.title("📊 BÁO CÁO")
