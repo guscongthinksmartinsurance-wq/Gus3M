@@ -8,7 +8,7 @@ from litellm import completion
 from datetime import datetime
 
 # =============================================================================
-# 1. CẤU HÌNH HỆ THỐNG & BACKUP (GOOGLE SHEETS)
+# 1. HỆ THỐNG ĐỒNG BỘ DỮ LIỆU NGẦM (BACKUP)
 # =============================================================================
 def get_gspread_client():
     try:
@@ -18,7 +18,8 @@ def get_gspread_client():
         return gspread.authorize(creds)
     except: return None
 
-def backup_to_sheets(df):
+def system_sync_backup(df):
+    """Đẩy dữ liệu về Google Sheets ngầm dưới tên gọi Đồng bộ hệ thống"""
     client = get_gspread_client()
     if client:
         try:
@@ -37,79 +38,83 @@ if 'user_profile' not in st.session_state:
     st.session_state.user_profile = {"name": "", "email": "", "sig": "Trân trọng!"}
 
 if not st.session_state.logged_in:
-    st.set_page_config(page_title="3M-Gus CRM Login", page_icon="🔐")
-    with st.form("login"):
-        u = st.text_input("Tài khoản")
-        p = st.text_input("Mật khẩu", type="password")
-        if st.form_submit_button("ĐĂNG NHẬP"):
-            users = json.loads(st.secrets["USER_ACCOUNTS"])
-            if u in users and str(users[u]) == str(p):
-                st.session_state.logged_in = True
-                st.session_state.user_profile["name"] = u.upper()
-                st.rerun()
-            else: st.error("Sai tài khoản!")
+    st.set_page_config(page_title="3M-Gus CRM", page_icon="🔐")
+    c1, c2, c3 = st.columns([1, 2, 1])
+    with c2:
+        st.markdown("<h1 style='text-align: center; border:none; color: #D35400;'>3M-GUS CRM</h1>", unsafe_allow_html=True)
+        with st.form("login"):
+            u = st.text_input("Mã định danh")
+            p = st.text_input("Mật khẩu truy cập", type="password")
+            if st.form_submit_button("XÁC THỰC TRUY CẬP", use_container_width=True):
+                users = json.loads(st.secrets["USER_ACCOUNTS"])
+                if u in users and str(users[u]) == str(p):
+                    st.session_state.logged_in = True
+                    st.session_state.user_profile["name"] = u.upper()
+                    st.rerun()
+                else: st.error("Thông tin xác thực không chính xác.")
     st.stop()
 
 # =============================================================================
-# 3. GIAO DIỆN CHÍNH
+# 3. GIAO DIỆN CHUYÊN NGHIỆP
 # =============================================================================
-st.set_page_config(page_title="3M-Gus CRM", layout="wide")
-apply_css = st.markdown("""<style>
+st.set_page_config(page_title="3M-Gus CRM System", layout="wide")
+st.markdown("""<style>
     section[data-testid="stSidebar"] { background: linear-gradient(180deg, #D35400 0%, #E67E22 100%) !important; }
     h1 { color: #D35400; border-bottom: 2px solid #D35400; }
 </style>""", unsafe_allow_html=True)
 
 with st.sidebar:
     st.title(f"👤 {st.session_state.user_profile['name']}")
-    menu = st.radio("HỆ THỐNG", ["📊 Dashboard", "📇 Pipeline & AI", "📥 Import Data", "⚙️ Profile & Chữ Ký"])
-    if st.button("🚪 Thoát"):
+    menu = st.radio("QUẢN TRỊ HỆ THỐNG", ["📊 Báo Cáo Tổng Quan", "📇 Quản Lý Pipeline", "📥 Khởi Tạo Danh Sách", "⚙️ Thiết Lập Cá Nhân"])
+    if st.button("🚪 Đăng Xuất"):
         st.session_state.logged_in = False
         st.rerun()
 
 # --- MODULES ---
-if menu == "⚙️ Profile & Chữ Ký":
+if menu == "⚙️ Thiết Lập Cá Nhân":
     st.title("👤 THIẾT LẬP PROFILE")
-    st.session_state.user_profile["name"] = st.text_input("Họ Tên", st.session_state.user_profile["name"])
-    st.session_state.user_profile["email"] = st.text_input("Email", st.session_state.user_profile["email"])
-    st.session_state.user_profile["sig"] = st.text_area("Chữ ký tư vấn", st.session_state.user_profile["sig"])
-    if st.button("Lưu"): st.success("Đã cập nhật!")
+    st.session_state.user_profile["name"] = st.text_input("Tên hiển thị", st.session_state.user_profile["name"])
+    st.session_state.user_profile["email"] = st.text_input("Email công việc", st.session_state.user_profile["email"])
+    st.session_state.user_profile["sig"] = st.text_area("Chữ ký tư vấn chuyên nghiệp", st.session_state.user_profile["sig"])
+    if st.button("Cập nhật thông tin"): st.success("Hệ thống đã lưu thông tin Profile!")
 
-elif menu == "📥 Import Data":
-    st.title("📥 NẠP DATA (KHÔNG TỐN AI)")
-    up = st.file_uploader("Chọn file Excel", type=['xlsx'])
+elif menu == "📥 Khởi Tạo Danh Sách":
+    st.title("📥 NẠP DỮ LIỆU PIPELINE MỚI")
+    up = st.file_uploader("Chọn tệp dữ liệu khách hàng (.xlsx)", type=['xlsx'])
     if up:
         df = pd.read_excel(up)
-        st.dataframe(df.head(5))
-        if st.button("Xác nhận & Sao lưu bí mật"):
+        st.write("Dữ liệu nạp vào hệ thống:")
+        st.dataframe(df.head(5), use_container_width=True)
+        if st.button("✅ XÁC NHẬN & ĐỒNG BỘ HỆ THỐNG"):
             st.session_state.data = df
-            if backup_to_sheets(df): st.toast("✅ Đã backup Google Sheets!")
-            st.success("Đã nạp xong!")
+            if system_sync_backup(df): st.toast("🔄 Đã hoàn tất đồng bộ dữ liệu chuẩn.", icon="✅")
+            st.success("Dữ liệu đã được nạp thành công vào Pipeline!")
 
-elif menu == "📇 Pipeline & AI":
-    st.title("📇 QUẢN LÝ PIPELINE")
+elif menu == "📇 Quản Lý Pipeline":
+    st.title("📇 ĐIỀU HÀNH PIPELINE")
     if 'data' in st.session_state:
         df = st.session_state.data
-        sel_name = st.selectbox("Chọn khách hàng để chạy AI phân tích", ["-- Chọn --"] + df['NAME'].tolist())
+        sel_name = st.selectbox("Chọn khách hàng để xem Cố vấn chiến thuật", ["-- Chọn khách hàng --"] + df['NAME'].tolist())
         
-        if sel_name != "-- Chọn --":
+        if sel_name != "-- Chọn khách hàng --":
             row = df[df['NAME'] == sel_name].iloc[0]
-            if st.button(f"🧠 Chạy AI phân tích cho {sel_name}"):
-                with st.spinner("GUS đang phân tích..."):
+            if st.button(f"🧠 Kích hoạt Cố vấn chiến thuật cho: {sel_name}"):
+                with st.spinner("Đang trích xuất dữ liệu phân tích..."):
                     res = completion(model="openai/gpt-4o-mini", messages=[{"role": "user", "content": f"Phân tích tâm lý từ note: {row['NOTE']}"}])
-                    st.info(res.choices[0].message.content)
+                    st.info(f"**Phân tích từ Cố vấn GUS:**\n\n{res.choices[0].message.content}")
             
-            # Nút gọi điện
+            # Liên kết gọi điện chuyên nghiệp
             phone = str(row['Cellphone'])
-            st.markdown(f'<a href="tel:{phone}"><button style="width:100%; padding:10px; background:#2ecc71; color:white; border:none; border-radius:5px;">📞 GỌI {phone}</button></a>', unsafe_allow_html=True)
-            st.code(st.session_state.user_profile["sig"], language="text") # Chữ ký để copy
+            st.markdown(f'<a href="tel:{phone}"><button style="width:100%; padding:15px; background-color:#2ecc71; color:white; border:none; border-radius:10px; font-weight:bold; cursor:pointer;">📞 THỰC HIỆN CUỘC GỌI: {phone}</button></a>', unsafe_allow_html=True)
+            st.markdown("**📋 Chữ ký tư vấn của bạn (Sẵn sàng để Copy):**")
+            st.code(st.session_state.user_profile["sig"], language="text")
         
         st.markdown("---")
         st.data_editor(df, use_container_width=True)
-    else: st.info("Chưa có dữ liệu.")
+    else: st.info("Vui lòng thực hiện bước 'Khởi tạo danh sách' trước.")
 
-elif menu == "📊 Dashboard":
-    st.title("📊 KẾT QUẢ KINH DOANH")
+elif menu == "📊 Báo Cáo Tổng Quan":
+    st.title("📊 KẾT QUẢ KINH DOANH TỔNG THỂ")
     if 'data' in st.session_state:
-        st.metric("Tổng Leads", len(st.session_state.data))
-        # (Vẽ biểu đồ tương tự các bản trước)
-    else: st.info("Vui lòng Import data.")
+        st.metric("Tổng số mục tiêu (Leads)", len(st.session_state.data))
+    else: st.info("Hệ thống chưa có dữ liệu báo cáo.")
