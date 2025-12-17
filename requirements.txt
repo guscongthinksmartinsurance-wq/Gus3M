@@ -5,3 +5,5 @@ numpy
 plotly
 litellm
 tenacity
+gspread
+oauth2client
